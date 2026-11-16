@@ -1,0 +1,6 @@
+out*/
+node_modules/
+*.tar.gz
+*.db
+.env
+__pycache__/
