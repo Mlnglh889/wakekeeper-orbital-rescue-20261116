@@ -1,233 +1,25 @@
-import {
-  freshRun,
-  makeSector,
-  nextSector,
-  sectorData,
-  UPGRADES,
-} from "./state.js";
-import { draw } from "./render.js";
-import { controls } from "./input.js";
-import { updateRescue } from "./simulation.js";
-import { tone, fanfare, setSound } from "./audio.js";
-import { loadChart, recordPassage, resumePassage, saveChart } from "./save.js";
-import { routeChart, passageTable } from "./route-chart.js";
-const chart = loadChart();
-const canvas = document.querySelector("#space"),
-  ctx = canvas.getContext("2d"),
-  hud = document.querySelector("#hud"),
-  panel = document.querySelector("#panel"),
-  keys = controls(canvas);
-let run = freshRun(),
-  last = 0,
-  acc = 0,
-  panelState = "",
-  best = 0;
-try {
-  best = Number(localStorage.getItem("wakekeeper-best") || 0);
-} catch {}
-function reset() {
-  const sound = run.sound;
+import {freshRun,makeSector,nextSector,sectorData,UPGRADES} from './state.js';import {draw} from './render.js';import {controls} from './input.js';import {updateRescue} from './simulation.js';import {tone,fanfare,setSound} from './audio.js';
+import {loadChart, recordPassage, resumePassage, saveChart} from './save.js';
+import {routeChart, passageTable} from './route-chart.js';
+const chart=loadChart();
+const canvas=document.querySelector('#space'),ctx=canvas.getContext('2d'),hud=document.querySelector('#hud'),panel=document.querySelector('#panel'),keys=controls(canvas);let run=freshRun(),last=0,acc=0,panelState='',best=0;try{best=Number(localStorage.getItem('wakekeeper-best')||0)}catch{}
+function reset(){  const sound = run.sound;
   run = freshRun();
   run.sound = sound;
   setSound(sound);
-  chart.checkpoint = null;
-  saveChart(chart);
-  makeSector(run);
-  run.screen = "play";
-  fanfare();
-  panelState = "";
-  updatePanels();
-}
-function button(text, fn, cls = "btn") {
-  let b = document.createElement("button");
-  b.className = cls;
-  b.textContent = text;
-  b.onclick = fn;
-  return b;
-}
-function card(html, wide = false) {
-  panel.innerHTML = "";
-  let c = document.createElement("section");
-  c.className = "card" + (wide ? " wide" : "");
-  c.innerHTML = html;
-  panel.append(c);
-  return c;
-}
-function updatePanels() {
-  let state = run.paused ? "paused" : run.screen;
-  if (panelState === state) return;
-  panelState = state;
-  panel.innerHTML = "";
-  if (state === "title") {
-    const c = card(
-      '<div class="edition">A small ship. An entire orbit.</div><h1>Wakekeeper</h1><h2>Rescue the Ring</h2><p>Aurelion’s stations have gone silent. Follow the distress signals, bring their passengers back to the relay, and keep the last light in orbit.</p><div class="tutorial"><span><b>WASD / arrows</b>Thrust & steer</span><span><b>Hold mouse</b>Thrust toward cursor</span><span><b>Shift / Space</b>Brake / boost</span></div><p class="fine">Approach SOS pods slowly. Carry up to 3 passengers. Dock at the golden relay to deliver and refuel. Rescue all four sectors.</p>',
-    );
-    c.append(button("Launch rescue  →", reset));
-    c.append(
-      button(
-        "Rescue chart" +
-          (chart.checkpoint ? " · continue saved expedition" : ""),
-        () => {
-          run.screen = "chart";
-          updatePanels();
-        },
-        "textbtn",
-      ),
-    );
-    let small = document.createElement("p");
-    small.className = "fine";
-    small.textContent = `Four sectors · three retrofits · best ${best.toLocaleString()} · P pause · M sound`;
-    c.append(small);
-  }
-  if (state === "paused") {
-    const c = card(
-      "<h2>Holding orbit</h2><p>Your ship and the debris field are paused.</p>",
-    );
-    c.append(
-      button("Resume flight", () => {
-        run.paused = false;
-        updatePanels();
-      }),
-    );
-    c.append(
-      button(
-        "Return to chart",
-        () => {
-          run.screen = "title";
-          run.paused = false;
-          updatePanels();
-        },
-        "textbtn",
-      ),
-    );
-  }
-  if (state === "clear") {
-    recordPassage(chart, run);
-    const d = sectorData(run.sector);
-    const c = card(
-      `<div class="edition">Sector ${run.sector} secured</div><h2>${d.name}</h2><div class="bigstat">${run.delivered}<small>passengers safely home</small></div>${passageTable(run.records)}<p>${Math.ceil(run.sectorTime)} seconds remaining · ${run.score.toLocaleString()} points<br>Every rescue changes the next orbit.</p>`,
-    );
-    c.append(
-      button(
-        run.sector === 4 ? "See expedition results" : "Chart the next sector",
-        () => {
-          if (run.sector === 4) {
-            run.screen = "result";
-            saveBest();
-          } else nextSector(run);
-          updatePanels();
-        },
-      ),
-    );
-  }
-  if (state === "chart") {
-    const c = card(
-      `<h2>Your rescue chart</h2><p>Completed passages are saved on this browser.</p>${routeChart(chart, chart.checkpoint?.sector)}`,
-      true,
-    );
-    if (chart.checkpoint)
-      c.append(
-        button("Continue expedition", () => {
-          run = resumePassage(chart, freshRun);
-          panelState = "";
-          updatePanels();
-        }),
-      );
-    c.append(button("New expedition", reset));
-    c.append(
-      button(
-        "Back to start",
-        () => {
-          run.screen = "title";
-          updatePanels();
-        },
-        "textbtn",
-      ),
-    );
-  }
-  if (state === "upgrade") {
-    let d = sectorData(run.sector);
-    const c = card(
-      `<div class="edition">Next passage · ${run.sector}/4</div><h2>${d.name}</h2><p>Select a permanent retrofit. Your fuel tanks are refilled at departure.</p>${routeChart(chart, run.sector)}<div class="choice-row"></div>`,
-      true,
-    );
-    UPGRADES.forEach((u, i) => {
-      let b = button(
-        "",
-        () => {
-          u.apply(run);
-          makeSector(run);
-          run.screen = "play";
-          tone(500, 0.2, "triangle");
-          updatePanels();
-        },
-        "choice",
-      );
-      b.innerHTML = `<span class="choice-icon">${["⌁", "◇", "⬡"][i]}</span><b>${u.name}</b><small>${u.desc}</small>`;
-      c.querySelector(".choice-row").append(b);
-    });
-  }
-  if (state === "result" || state === "lost") {
-    saveBest();
-    let won = state === "result";
-    const c = card(
-      `<div class="edition">${won ? "Expedition complete" : "Rescue report"}</div><h2>${won ? "An orbit full of light." : "Your signal lives on."}</h2><p>${won ? "Eighteen passengers. Four silent stations, awakened. You brought them home." : run.reason}</p><div class="bigstat">${run.score.toLocaleString()}<small>expedition points · best ${best.toLocaleString()}</small></div>${passageTable(run.records)}<div class="resultstats"><span><b>${run.rescued}</b>rescued</span><span><b>${run.sector}/4</b>sectors</span><span><b>${Math.floor(run.elapsed)}s</b>flight time</span></div>`,
-    );
-    c.append(button("Fly another rescue  ↻", reset));
-    c.append(
-      button(
-        "Back to start",
-        () => {
-          run.screen = "title";
-          updatePanels();
-        },
-        "textbtn",
-      ),
-    );
-  }
-}
-function saveBest() {
-  best = Math.max(best, run.score);
-  try {
-    localStorage.setItem("wakekeeper-best", String(best));
-  } catch {}
-}
-function hudDraw() {
-  if (run.screen === "title") {
-    hud.innerHTML =
-      '<div class="brandmark">◈ W / K</div><div class="corner-note">Independent orbital rescue service<br>Aurelion system · chart 04</div>';
-    return;
-  }
-  let d = sectorData(run.sector),
-    time = Math.max(0, Math.ceil(run.sectorTime));
-  hud.innerHTML = `<div class="bar"><div class="mission"><span class="label">Passage ${run.sector} / 4</span><strong>${d.name}</strong></div><div class="metric"><span class="label">Delivered</span><strong>${run.delivered}<em> / ${run.total}</em></strong></div><div class="metric"><span class="label">Passengers</span><strong>${run.cargo}<em> / ${run.capacity}</em></strong></div><div class="metric fuel"><span class="label">Fuel ${Math.ceil(run.fuel)}%</span><div class="meter"><i style="width:${run.fuel}%"></i></div><small>${"◆".repeat(Math.max(0, run.hull))}${"◇".repeat(Math.max(0, run.maxHull - run.hull))} armor</small></div><div class="metric"><span class="label">Window</span><strong class="${time < 30 ? "danger" : ""}">${Math.floor(time / 60)}:${String(time % 60).padStart(2, "0")}</strong></div><div class="metric"><span class="label">Score</span><strong>${run.score.toLocaleString()}</strong></div></div><div class="lower"><span>${run.messageTime > 0 ? run.message : "Gold dotted line: your predicted coast path. Gravity is free. Fuel is not."}</span><small>Speed ${Math.round(Math.hypot(run.pilot.vx,run.pilot.vy))} · WASD thrust · Shift brake · Space boost · P pause · M sound ${run.sound ? "on" : "off"}</small></div>`;
-}
-addEventListener("keydown", (e) => {
-  if (e.repeat) return;
-  if (e.code === "KeyP" && run.screen === "play") {
-    run.paused = !run.paused;
-    updatePanels();
-  }
-  if (e.code === "KeyM") {
-    run.sound = !run.sound;
-    setSound(run.sound);
-  }
-  if (e.code === "Enter" && run.screen === "title") reset();
-});
-function tick(t) {
-  let delta = Math.min(0.1, (t - last) / 1000 || 0);
-  last = t;
-  acc += delta;
-  while (acc >= 1 / 60) {
-    if (run.screen === "play") updateRescue(run, keys, 1 / 60);
-    acc -= 1 / 60;
-  }
-  draw(ctx, run, t / 1000);
-  hudDraw();
-  updatePanels();
-  requestAnimationFrame(tick);
-}
-updatePanels();
-requestAnimationFrame(tick);
+  chart.checkpoint=null;saveChart(chart);makeSector(run);run.screen='play';fanfare();panelState='';updatePanels()}
+function button(text,fn,cls='btn'){let b=document.createElement('button');b.className=cls;b.textContent=text;b.onclick=fn;return b}
+function card(html,wide=false){panel.innerHTML='';let c=document.createElement('section');c.className='card'+(wide?' wide':'');c.innerHTML=html;panel.append(c);return c}
+function updatePanels(){let state=run.paused?'paused':run.screen;if(panelState===state)return;panelState=state;panel.innerHTML='';if(state==='title'){const c=card('<div class="edition">A small ship. An entire orbit.</div><h1>Wakekeeper</h1><h2>Rescue the Ring</h2><p>Aurelion’s stations have gone silent. Follow the distress signals, bring their passengers back to the relay, and keep the last light in orbit.</p><div class="tutorial"><span><b>WASD / arrows</b>Thrust & steer</span><span><b>Hold mouse</b>Thrust toward cursor</span><span><b>Shift / Space</b>Brake / boost</span></div><p class="fine">Approach SOS pods slowly. Carry up to 3 passengers. Dock at the golden relay to deliver and refuel. Rescue all four sectors.</p>');c.append(button('Launch rescue  →',reset));c.append(button('Rescue chart'+(chart.checkpoint?' · continue saved expedition':''),()=>{run.screen='chart';updatePanels()},'textbtn'));let small=document.createElement('p');small.className='fine';small.textContent=`Four sectors · three retrofits · best ${best.toLocaleString()} · P pause · M sound`;c.append(small)}
+if(state==='paused'){const c=card('<h2>Holding orbit</h2><p>Your ship and the debris field are paused.</p>');c.append(button('Resume flight',()=>{run.paused=false;updatePanels()}));c.append(button('Return to chart',()=>{run.screen='title';run.paused=false;updatePanels()},'textbtn'))}
+if(state==='clear'){recordPassage(chart,run);const d=sectorData(run.sector);const c=card(`<div class="edition">Sector ${run.sector} secured</div><h2>${d.name}</h2><div class="bigstat">${run.delivered}<small>passengers safely home</small></div>${passageTable(run.records)}<p>${Math.ceil(run.sectorTime)} seconds remaining · ${run.score.toLocaleString()} points<br>Every rescue changes the next orbit.</p>`);c.append(button(run.sector===4?'See expedition results':'Chart the next sector',()=>{if(run.sector===4){run.screen='result';saveBest()}else nextSector(run);updatePanels()}))}
+if(state==='chart'){const c=card(`<h2>Your rescue chart</h2><p>Completed passages are saved on this browser.</p>${routeChart(chart,chart.checkpoint?.sector)}`,true);if(chart.checkpoint)c.append(button('Continue expedition',()=>{run=resumePassage(chart,freshRun);panelState='';updatePanels()}));c.append(button('New expedition',reset));c.append(button('Back to start',()=>{run.screen='title';updatePanels()},'textbtn'))}
+if(state==='upgrade'){let d=sectorData(run.sector);const c=card(`<div class="edition">Next passage · ${run.sector}/4</div><h2>${d.name}</h2><p>Select a permanent retrofit. Your fuel tanks are refilled at departure.</p>${routeChart(chart,run.sector)}<div class="choice-row"></div>`,true);UPGRADES.forEach((u,i)=>{let b=button('',()=>{u.apply(run);makeSector(run);run.screen='play';tone(500,.2,'triangle');updatePanels()},'choice');b.innerHTML=`<span class="choice-icon">${['⌁','◇','⬡'][i]}</span><b>${u.name}</b><small>${u.desc}</small>`;c.querySelector('.choice-row').append(b)})}
+if(state==='result'||state==='lost'){saveBest();let won=state==='result';const c=card(`<div class="edition">${won?'Expedition complete':'Rescue report'}</div><h2>${won?'An orbit full of light.':'Your signal lives on.'}</h2><p>${won?'Eighteen passengers. Four silent stations, awakened. You brought them home.':run.reason}</p><div class="bigstat">${run.score.toLocaleString()}<small>expedition points · best ${best.toLocaleString()}</small></div>${passageTable(run.records)}<div class="resultstats"><span><b>${run.rescued}</b>rescued</span><span><b>${run.sector}/4</b>sectors</span><span><b>${Math.floor(run.elapsed)}s</b>flight time</span></div>`);c.append(button('Fly another rescue  ↻',reset));c.append(button('Back to start',()=>{run.screen='title';updatePanels()},'textbtn'))}}
+function saveBest(){best=Math.max(best,run.score);try{localStorage.setItem('wakekeeper-best',String(best))}catch{}}
+function hudDraw(){if(run.screen==='title'){hud.innerHTML='<div class="brandmark">◈ W / K</div><div class="corner-note">Independent orbital rescue service<br>Aurelion system · chart 04</div>';return}let d=sectorData(run.sector),time=Math.max(0,Math.ceil(run.sectorTime));hud.innerHTML=`<div class="bar"><div class="mission"><span class="label">Passage ${run.sector} / 4</span><strong>${d.name}</strong></div><div class="metric"><span class="label">Delivered</span><strong>${run.delivered}<em> / ${run.total}</em></strong></div><div class="metric"><span class="label">Passengers</span><strong>${run.cargo}<em> / ${run.capacity}</em></strong></div><div class="metric fuel"><span class="label">Fuel ${Math.ceil(run.fuel)}%</span><div class="meter"><i style="width:${run.fuel}%"></i></div><small>${'◆'.repeat(Math.max(0,run.hull))}${'◇'.repeat(Math.max(0,run.maxHull-run.hull))} armor</small></div><div class="metric"><span class="label">Window</span><strong class="${time<30?'danger':''}">${Math.floor(time/60)}:${String(time%60).padStart(2,'0')}</strong></div><div class="metric"><span class="label">Score</span><strong>${run.score.toLocaleString()}</strong></div></div><div class="lower"><span>${run.messageTime>0?run.message:'Gold dotted line: your predicted coast path. Gravity is free. Fuel is not.'}</span><small>Speed ${Math.round(Math.hypot(run.pilot.vx,run.pilot.vy))} · WASD thrust · Shift brake · Space boost · P pause · M sound ${run.sound ? "on" : "off"}</small></div>`}
+addEventListener('keydown',e=>{if(e.repeat)return;if(e.code==='KeyP'&&run.screen==='play'){run.paused=!run.paused;updatePanels()}if(e.code==='KeyM'){run.sound=!run.sound;setSound(run.sound)}if(e.code==='Enter'&&run.screen==='title')reset()});
+function tick(t){let delta=Math.min(.1,(t-last)/1000||0);last=t;acc+=delta;while(acc>=1/60){if(run.screen==='play')updateRescue(run,keys,1/60);acc-=1/60}draw(ctx,run,t/1000);hudDraw();updatePanels();requestAnimationFrame(tick)}
+updatePanels();requestAnimationFrame(tick);
 // Read-only telemetry for genuine keyboard/mouse playtests; no shortcuts alter the game state.
-window.__wakekeeper = { getState: () => JSON.parse(JSON.stringify(run)) };
+window.__wakekeeper={getState:()=>JSON.parse(JSON.stringify(run))};
