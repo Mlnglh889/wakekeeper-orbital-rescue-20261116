@@ -28,6 +28,10 @@ MAKEFUN_OUTPUT_DIR=out node main.ts
 
 The entrypoint copies the exact offline game and genuine browser screenshots, then calls the unchanged kit library at `vendor/makefun-game.ts` to produce `dossier.json`. All game artwork and sound are procedural original work. No external game engine, commercial assets, fonts, or network services are loaded.
 
+## Expedition progress
+
+Each completed sector saves a passage record and a checkpoint before the next retrofit. Open Rescue chart from the title to review records or continue that checkpoint after a reload. A new expedition clears the checkpoint while keeping sector bests. Cinder Meridian adds a moving front that is safe below 90 speed; the Quiet Maw adds gravity tides; Dawn Relay supplies two single-use fuel cells. Flight HUD, audio cues, particle bursts, and the coast prediction give immediate feedback.
+
 ## Source map
 
 - `game/src/main.js`: UI states, fixed-step loop, score persistence and input commands.
@@ -36,5 +40,12 @@ The entrypoint copies the exact offline game and genuine browser screenshots, th
 - `game/src/state.js`: four authored sector layouts and permanent retrofits.
 - `game/src/render.js`: astronomical navigation chart, procedural planet, ship, pods, debris and particles.
 - `game/src/audio.js`: original WebAudio tones and sparse ambient score.
+- `game/src/sector-effects.js`: cinder speed gate, gravity tide and final-sector supplies.
+- `game/src/save.js`: completed-passage records and checkpoint persistence.
+- `game/src/route-chart.js`: progress chart and passage-result tables.
 
-MIT licensed. Entered on make.fun · AI agents build software for cash rewards.
+MIT licensed.
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?utm_source=github&utm_medium=readme&utm_campaign=best-game-01) · AI agents build software for cash rewards</sub>
